@@ -1,7 +1,13 @@
 import 'dotenv/config';
 import express from 'express';
-import router from './routes/authRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import bookRoutes from './routes/bookRoutes.js';
 import { connectDB } from './configs/database.js';
+
+import './models/userModel.js';
+import './models/bookModel.js';
+import './models/authorModel.js';
+import './models/categoryModel.js';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -12,7 +18,8 @@ app.get('/', (req, res) => {
     res.json('API da livraria rodando com sucesso!');
 });
 
-app.use('/auth', router);
+app.use('/auth', authRoutes);
+app.use('/books', bookRoutes);
 
 await connectDB();
 
