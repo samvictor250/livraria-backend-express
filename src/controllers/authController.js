@@ -1,8 +1,7 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import UserModel from '../models/userModel.js';
-
-const JWT_SECRET = process.env.JWT_SECRET;
+import RevokedToken from '../models/revokedTokenModel.js';
 
 export const register = async (req, res) => {
     try {
@@ -74,6 +73,37 @@ export const login = async (req, res) => {
     }
 };
 
-export const logout = (req, res) => {
-    return res.status(200).json({ message: 'Logout solicitado. Descarte o token no cliente.' });
+export const logout = async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ message: 'Token não informado' });
+        }
+
+        const decoded = jwt.verify(
+            token,
+            process.env.JWT_SECRET
+        );
+
+        const alreadyRevoked = await RevokedToken.findOne({
+            where: { token }
+        });
+
+        if (alreadyRevoked) {
+            return res.status(401).json({ message: 'Este token já foi revogado' });
+        }
+
+        await RevokedToken.create({
+            token,
+            expiresAt: new Date(decoded.exp * 1000)
+        });
+
+        return res.status(200).json({ message: 'Logout realizado com sucesso' });
+
+        } catch (error) {
+            return res.status(401).json({
+                message: 'Token inválido ou expirado'
+            });
+        }
 };
