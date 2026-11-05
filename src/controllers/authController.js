@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import UserModel from '../models/userModel.js';
 import RevokedToken from '../models/revokedTokenModel.js';
 
+const JWT_SECRET = process.env.JWT_SECRET;
+
 export const register = async (req, res) => {
     try {
         const { name, email, password } = req.body;
@@ -101,9 +103,7 @@ export const logout = async (req, res) => {
 
         return res.status(200).json({ message: 'Logout realizado com sucesso' });
 
-        } catch (error) {
-            return res.status(401).json({
-                message: 'Token inválido ou expirado'
-            });
-        }
+    } catch (error) {
+        return res.status(401).json({ message: 'Token inválido ou expirado' });
+    }
 };
