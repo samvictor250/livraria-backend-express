@@ -4,6 +4,6 @@ import { authMiddleware } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
-router.get('/:authorId/books', authMiddleware, getBooksByCategory);
+router.get('/:categoryId/books', authMiddleware, getBooksByCategory);
 
 export default router;
