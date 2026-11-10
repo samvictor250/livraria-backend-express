@@ -7,6 +7,7 @@ import authorRoutes from './routes/authorRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
 import authorBookRoutes from './routes/authorBookRoutes.js';
 import categoryBookRoutes from './routes/categoryBookRoutes.js';
+import { authMiddleware } from './middlewares/authMiddleware.js';
 import { connectDB } from './configs/database.js';
 
 import './models/userModel.js';
@@ -22,7 +23,7 @@ const port = process.env.PORT || 3000;
 
 app.use(express.json());
 
-app.get('/', (req, res) => {
+app.get('/', authMiddleware, (req, res) => {
     res.json('API da livraria rodando com sucesso!');
 });
 
