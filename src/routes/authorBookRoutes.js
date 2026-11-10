@@ -1,9 +1,9 @@
 import express from 'express';
-import { getBooksByCategory } from '../controllers/categoryBookController.js';
+import { getBooksByAuthor } from '../controllers/authorBookController.js';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 
 const router = express.Router();
 
-router.get('/:categoryId/books', authMiddleware, getBooksByCategory);
+router.get('/:categoryId/books', authMiddleware, getBooksByAuthor);
 
 export default router;
