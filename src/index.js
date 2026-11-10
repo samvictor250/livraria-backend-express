@@ -11,6 +11,8 @@ import './models/authorModel.js';
 import './models/categoryModel.js';
 import './models/revokedTokenModel.js';
 
+import './models/associations.js';
+
 const app = express();
 const port = process.env.PORT || 3000;
 
