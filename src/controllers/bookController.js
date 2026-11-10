@@ -1,11 +1,32 @@
 import BookModel from '../models/bookModel.js';
+import AuthorModel from '../models/authorModel.js';
+import CategoryModel from '../models/categoryModel.js';
 
 export const createBook = async (req, res) => {
     try {
         const { title, authorId, categoryId, description } = req.body;
 
-        if (!title || !authorId || !categoryId || !description) {
-            return res.status(400).json({ error: 'Campos obrigatórios' });
+        if (
+            !title ||
+            !description ||
+            !Number.isInteger(Number(authorId)) ||
+            Number(authorId) <= 0 ||
+            !Number.isInteger(Number(categoryId)) ||
+            Number(categoryId) <= 0
+        ) {
+            return res.status(400).json({ error: 'Dados inválidos ou campos obrigatórios ausentes' });
+        }
+        
+        const author = await AuthorModel.findByPk(authorId);
+        
+        if (!author) {
+            return res.status(404).json({ message: 'Autor não encontrado' });
+        }
+
+        const category = await CategoryModel.findByPk(categoryId);
+
+        if (!category) {
+            return res.status(404).json({ message: 'Categoria não encontrada' });
         }
 
         const newBook = await BookModel.create({
@@ -14,7 +35,7 @@ export const createBook = async (req, res) => {
             categoryId,
             description
         });
-
+        
         return res.status(201).json({
             id: newBook.id,
             title: newBook.title,
@@ -29,12 +50,12 @@ export const createBook = async (req, res) => {
     }
 };
 
-export const getBook = async (req, res) => {
+export const getBookById = async (req, res) => {
     const { id } = req.params;
 
     try {
-        if (!id) {
-            return res.status(400).json({ message: 'ID do livro não informado' });
+        if (!Number.isInteger(Number(id)) || Number(id) <= 0) {
+            return res.status(400).json({ message: 'ID inválido' });
         }
 
         const book = await BookModel.findByPk(id);
@@ -67,13 +88,38 @@ export const updateBook = async (req, res) => {
     const { id } = req.params;
     const { title, authorId, categoryId, description } = req.body;    
     try {
-        if (!id) {
-            return res.status(400).json({ error: 'ID do livro não informado'});
+        if (!Number.isInteger(Number(id)) || Number(id) <= 0) {
+            return res.status(400).json({ message: 'ID inválido' });
         }
 
         const book = await BookModel.findByPk(id);
         if (!book) {
             return res.status(404).json({ message: 'Livro não encontrado' });
+        }
+
+        if (
+            title === undefined &&
+            authorId === undefined &&
+            categoryId === undefined &&
+            description === undefined
+        ) { 
+            return res.status(400).json({ message: 'Informe ao menos um campo para atualização' });
+        }
+
+        if (authorId !== undefined) {
+            const author = await AuthorModel.findByPk(authorId);
+
+            if (!author) {
+                return res.status(404).json({ message: 'Autor não encontrado' });
+            }
+        }
+
+        if (categoryId !== undefined) {
+            const category = await CategoryModel.findByPk(categoryId);
+
+            if (!category) {
+                return res.status(404).json({ message: 'Categoria não encontrada' });
+            }
         }
 
         await book.update({
@@ -94,8 +140,8 @@ export const updateBook = async (req, res) => {
 export const deleteBook = async (req, res) => {
     const { id } = req.params;
     try {
-        if(!id){
-            return res.status(400).json({ message: 'ID não fornecido' });
+        if (!Number.isInteger(Number(id)) || Number(id) <= 0) {
+            return res.status(400).json({ message: 'ID inválido' });
         }
         
         const book = await BookModel.findByPk(id);

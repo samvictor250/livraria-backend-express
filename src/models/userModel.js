@@ -10,6 +10,14 @@ UserModel.init(
             autoIncrement: true,
             primaryKey: true,
         },
+        role: {
+            type: DataTypes.STRING,
+            allowNull: false,
+            defaultValue: 'user',
+            validate: {
+                isIn: [['user', 'admin']]
+            }
+        },
         name: {
             type: DataTypes.STRING,
             allowNull: false,
