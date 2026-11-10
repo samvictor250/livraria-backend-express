@@ -3,6 +3,10 @@ import express from 'express';
 import authRoutes from './routes/authRoutes.js';
 import bookRoutes from './routes/bookRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import authorRoutes from './routes/authorRoutes.js';
+import categoryRoutes from './routes/categoryRoutes.js';
+import authorBookRoutes from './routes/authorBookRoutes.js';
+import categoryBookRoutes from './routes/categoryBookRoutes.js';
 import { connectDB } from './configs/database.js';
 
 import './models/userModel.js';
@@ -25,6 +29,11 @@ app.get('/', (req, res) => {
 app.use('/users', userRoutes);
 app.use('/auth', authRoutes);
 app.use('/books', bookRoutes);
+app.use('/authors', authorRoutes);
+app.use('/categories', categoryRoutes);
+
+app.use('/authors', authorBookRoutes);
+app.use('/categories', categoryBookRoutes);
 
 await connectDB();
 
