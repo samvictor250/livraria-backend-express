@@ -11,10 +11,12 @@ export const authMiddleware = async (req, res, next) => {
             return res.status(401).json({ message: 'Token não informado' });
         }
 
-        const token = authHeader.split(' ')[1];
+        const [scheme, token] = authHeader.split(' ');
 
-        if (!token) {
-            return res.status(401).json({ message: 'Formato de token inválido' });
+        if (scheme !== 'Bearer' || !token) {
+            return res.status(401).json({
+                message: 'Formato de token inválido'
+            });
         }
 
         const decoded = jwt.verify(
