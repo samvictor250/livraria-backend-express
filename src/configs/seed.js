@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import argon2 from 'argon2';
 
 import UserModel from '../models/userModel.js';
 import AuthorModel from '../models/authorModel.js';
@@ -10,14 +10,14 @@ export const seedDatabase = async () => {
         console.log('Iniciando cadastro dos dados iniciais...');
 
         // USERS
-        const adminPassword = await bcrypt.hash(
+        const adminPassword = await argon2.hash(
             process.env.SEED_ADMIN_PASSWORD || 'Admin@123456',
-            10
+            { type: argon2.argon2id }
         );
 
-        const userPassword = await bcrypt.hash(
+        const userPassword = await argon2.hash(
             process.env.SEED_USER_PASSWORD || 'Usuario@123456',
-            10
+            { type: argon2.argon2id }
         );
 
         await UserModel.findOrCreate({

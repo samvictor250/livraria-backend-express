@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import UserModel from '../models/userModel.js';
 import RevokedToken from '../models/revokedTokenModel.js';
@@ -18,7 +18,10 @@ export const register = async (req, res) => {
             return res.status(409).json({ error: 'Email já cadastrado' });
         }
 
-        const hash = await bcrypt.hash(password, 10);
+        // REFACTOR
+        const hash = await argon2.hash(password, {
+            type: argon2.argon2id
+        });
 
         const newUser = await UserModel.create({
             name,
@@ -53,12 +56,15 @@ export const login = async (req, res) => {
             return res.status(401).json({ error: 'Credenciais inválidas' });
         }
 
-        const senhaValida = await bcrypt.compare(password, user.password);
+        // REFACTOR
+        const senhaValida = await argon2.verify(user.password, password);
 
         if (!senhaValida) {
-            return res.status(401).json({ error: 'Credenciais inválidas' });
+            return res.status(401).json({
+                error: 'Credenciais inválidas'
+            });
         }
-
+        
         const token = jwt.sign(
             { 
                 id: user.id, 
