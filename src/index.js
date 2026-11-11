@@ -9,6 +9,7 @@ import authorBookRoutes from './routes/authorBookRoutes.js';
 import categoryBookRoutes from './routes/categoryBookRoutes.js';
 import { authMiddleware } from './middlewares/authMiddleware.js';
 import { connectDB } from './configs/database.js';
+import { seedDatabase } from './configs/seed.js';
 
 import './models/userModel.js';
 import './models/bookModel.js';
@@ -37,6 +38,7 @@ app.use('/authors', authorBookRoutes);
 app.use('/categories', categoryBookRoutes);
 
 await connectDB();
+await seedDatabase();
 
 app.listen(port, () => {
     console.log(`Server rodando na porta: ${port}`);
