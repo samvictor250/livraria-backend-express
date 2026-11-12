@@ -1,0 +1,988 @@
+{
+  "info": {
+    "_postman_id": "cf046b8a-d158-46de-9cda-7619a0bf25d5",
+    "name": "Livraria Backend Express",
+    "description": "Collection baseada nas rotas existentes no commit e8ca3c2 (fix: remoção da rota pública /auth/). Inclui autenticação, perfil do usuário, CRUD de autores/categorias/livros e consultas relacionais por URL composta. Operações de escrita do catálogo exigem role=admin.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "58687758",
+    "_collection_link": "https://go.postman.co/collection/58687758-cf046b8a-d158-46de-9cda-7619a0bf25d5?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "0. Status da API",
+      "item": [
+        {
+          "name": "GET Status (requer login)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "A rota raiz está protegida pelo authMiddleware. Esperado: 200 com token válido; 401 sem token."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1. Autenticação (Auth)",
+      "item": [
+        {
+          "name": "POST Sign up - Cadastrar usuário",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{userName}}\",\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Pública. Cria usuário com role=user. O cadastro não retorna JWT; execute Login depois."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Login - Usuário",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {\n  const data = pm.response.json();\n  if (data.token) pm.environment.set('token', data.token);\n  if (data.user && data.user.role) pm.environment.set('loggedRole', data.user.role);\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"{{userPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Pública. Salva automaticamente o JWT retornado em {{token}} para as próximas requisições."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Login - Administrador",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {\n  const data = pm.response.json();\n  if (data.token) pm.environment.set('token', data.token);\n  if (data.user && data.user.role) pm.environment.set('loggedRole', data.user.role);\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Use somente após configurar uma conta cujo role no banco seja admin. Salva o JWT em {{token}}."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {\n  pm.environment.set('token', '');\n  pm.environment.set('loggedRole', '');\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Protegida. Revoga o token atual; após resposta 200, limpa a variável token."
+          },
+          "response": []
+        }
+      ],
+      "description": "Somente register e login são públicos. Logout exige Bearer token."
+    },
+    {
+      "name": "2. Perfil do usuário (Users)",
+      "item": [
+        {
+          "name": "GET Consultar meu perfil",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            },
+            "description": "Retorna somente o usuário associado ao JWT atual; a senha não é retornada."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Atualizar meu perfil",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{userNameUpdated}}\",\n  \"email\": \"{{userEmailUpdated}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            },
+            "description": "Atualiza somente o usuário autenticado. Campos aceitos: name, email e/ou password. Não existe rota para alterar outro usuário por ID."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE Excluir minha conta",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            },
+            "description": "Exclui a própria conta. Execute por último; o token atual deixa de representar uma conta existente."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Autores (Authors)",
+      "item": [
+        {
+          "name": "GET Listar autores",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/authors",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "authors"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Buscar autor por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/authors/{{authorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "authors",
+                "{{authorId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Criar autor (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {\n  const data = pm.response.json();\n  if (data.id !== undefined) pm.environment.set('authorId', String(data.id));\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Autor de Teste Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/authors/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "authors",
+                ""
+              ]
+            },
+            "description": "Requer role=admin. Captura o id criado em {{authorId}}."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Atualizar autor por ID (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Autor de Teste Postman Atualizado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/authors/{{authorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "authors",
+                "{{authorId}}"
+              ]
+            },
+            "description": "Requer role=admin."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE Excluir autor por ID (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/authors/{{authorId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "authors",
+                "{{authorId}}"
+              ]
+            },
+            "description": "Requer role=admin. Exclua primeiro os livros associados para não violar a chave estrangeira."
+          },
+          "response": []
+        }
+      ],
+      "description": "GET exige autenticação. POST, PUT e DELETE exigem autenticação e role=admin."
+    },
+    {
+      "name": "4. Categorias (Categories)",
+      "item": [
+        {
+          "name": "GET Listar categorias",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Buscar categoria por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories",
+                "{{categoryId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Criar categoria (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {\n  const data = pm.response.json();\n  if (data.id !== undefined) pm.environment.set('categoryId', String(data.id));\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Categoria de Teste Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ]
+            },
+            "description": "Requer role=admin. Captura o id criado em {{categoryId}}."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Atualizar categoria por ID (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Categoria de Teste Postman Atualizada\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories",
+                "{{categoryId}}"
+              ]
+            },
+            "description": "Requer role=admin."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE Excluir categoria por ID (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/categories/{{categoryId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories",
+                "{{categoryId}}"
+              ]
+            },
+            "description": "Requer role=admin. Exclua primeiro os livros associados para não violar a chave estrangeira."
+          },
+          "response": []
+        }
+      ],
+      "description": "GET exige autenticação. POST, PUT e DELETE exigem autenticação e role=admin."
+    },
+    {
+      "name": "5. Livros (Books)",
+      "item": [
+        {
+          "name": "GET Listar livros",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET Buscar livro por ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/books/{{bookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                "{{bookId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Criar livro (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {\n  const data = pm.response.json();\n  if (data.id !== undefined) pm.environment.set('bookId', String(data.id));\n}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Livro de Teste Postman\",\n  \"authorId\": {{authorId}},\n  \"categoryId\": {{categoryId}},\n  \"description\": \"Registro criado para testar o CRUD e os relacionamentos da API.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/books/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                ""
+              ]
+            },
+            "description": "Requer role=admin e authorId/categoryId existentes. Captura o id criado em {{bookId}}."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Atualizar livro por ID (admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Livro de Teste Postman Atualizado\",\n  \"description\": \"Descrição atualizada pelo Postman.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/books/{{bookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                "{{bookId}}"
+              ]
+            },
+            "description": "Requer role=admin. O controller aceita atualização parcial de title, authorId, categoryId e description."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE Excluir livro por ID (admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/books/{{bookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                "{{bookId}}"
+              ]
+            },
+            "description": "Requer role=admin. Execute antes de excluir autor ou categoria associados."
+          },
+          "response": []
+        }
+      ],
+      "description": "GET exige autenticação. POST, PUT e DELETE exigem autenticação e role=admin."
+    },
+    {
+      "name": "6. Relacionamentos (URLs compostas)",
+      "item": [
+        {
+          "name": "GET Listar livros de um autor",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/authors/{{authorId}}/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "authors",
+                "{{authorId}}",
+                "books"
+              ]
+            },
+            "description": "URL composta. Retorna os livros cujo authorId corresponde ao parâmetro authorId."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar livros de uma categoria",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/categories/{{categoryId}}/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories",
+                "{{categoryId}}",
+                "books"
+              ]
+            },
+            "description": "URL composta. Retorna os livros cujo categoryId corresponde ao parâmetro categoryId."
+          },
+          "response": []
+        }
+      ],
+      "description": "São as duas rotas compostas implementadas no código atual. Ambas são GET e exigem login."
+    },
+    {
+      "name": "7. Segurança e respostas de erro",
+      "item": [
+        {
+          "name": "GET Status sem token (esperado 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "Requisição intencionalmente sem Authorization. Esperado: 401 Unauthorized."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Listar livros sem token (esperado 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/books/{{bookId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                "{{bookId}}"
+              ]
+            },
+            "description": "Requisição intencionalmente sem Authorization. Esperado: 401 Unauthorized."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Criar autor com usuário comum (esperado 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Autor não autorizado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/authors/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "authors",
+                ""
+              ]
+            },
+            "description": "Faça login com uma conta role=user antes de executar. Esperado: 403 Forbidden, pois escrita no catálogo exige admin."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Autor inexistente (esperado 404)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/authors/{{idInexistente}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "authors",
+                "{{idInexistente}}"
+              ]
+            },
+            "description": "Com token válido. Esperado: 404 Autor não encontrado."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://livraria-backend-express.vercel.app"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "loggedRole",
+      "value": ""
+    },
+    {
+      "key": "userName",
+      "value": "Usuário de Teste"
+    },
+    {
+      "key": "userEmail",
+      "value": "teste.livraria@example.com"
+    },
+    {
+      "key": "userPassword",
+      "value": "SenhaTeste123!"
+    },
+    {
+      "key": "userNameUpdated",
+      "value": "Usuário de Teste Atualizado"
+    },
+    {
+      "key": "userEmailUpdated",
+      "value": "teste.livraria.atualizado@example.com"
+    },
+    {
+      "key": "adminEmail",
+      "value": ""
+    },
+    {
+      "key": "adminPassword",
+      "value": ""
+    },
+    {
+      "key": "authorId",
+      "value": "1"
+    },
+    {
+      "key": "categoryId",
+      "value": "1"
+    },
+    {
+      "key": "bookId",
+      "value": "1"
+    },
+    {
+      "key": "idInexistente",
+      "value": "999999"
+    }
+  ]
+}
