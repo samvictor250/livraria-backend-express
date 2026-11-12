@@ -103,15 +103,22 @@ export const deleteUser = async (req, res) => {
         const user = await UserModel.findByPk(req.user.id);
 
         if (!user) {
-            return res.status(404).json({ message: 'Usuário não encontrado' });
+            return res.status(404).json({
+                message: 'Usuário não encontrado'
+            });
         }
 
         await user.destroy();
 
-        return res.status(200).json({ message: 'Usuário excluído com sucesso' });
+        return res.status(200).json({
+            message: 'Usuário excluído com sucesso'
+        });
 
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ message: 'Erro ao excluir usuário' });
+
+        return res.status(500).json({
+            message: 'Erro ao excluir usuário'
+        });
     }
 };
