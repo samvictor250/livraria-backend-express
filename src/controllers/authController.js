@@ -1,9 +1,27 @@
+import crypto from 'node:crypto';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
+import sequelize from '../configs/database.js';
 import UserModel from '../models/userModel.js';
 import RevokedToken from '../models/revokedTokenModel.js';
+import RefreshTokenModel from '../models/refreshTokenModel.js';
 
-const JWT_SECRET = process.env.JWT_SECRET;
+const ACCESS_TOKEN_TTL = '15m';
+const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+const createAccessToken = (user) => jwt.sign(
+    {
+        id: user.id,
+        email: user.email,
+        role: user.role
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: ACCESS_TOKEN_TTL }
+);
+
+const createRefreshToken = () => crypto.randomBytes(40).toString('hex');
+
+const refreshTokenExpiration = () => new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
 
 export const register = async (req, res) => {
     try {
@@ -18,7 +36,6 @@ export const register = async (req, res) => {
             return res.status(409).json({ error: 'Email já cadastrado' });
         }
 
-        // REFACTOR
         const hash = await argon2.hash(password, {
             type: argon2.argon2id
         });
@@ -35,9 +52,8 @@ export const register = async (req, res) => {
             name: newUser.name,
             email: newUser.email
         });
-
     } catch (error) {
-        console.error(error);
+        console.error('Erro no cadastro:', error);
         return res.status(500).json({ error: 'Erro no servidor' });
     }
 };
@@ -52,32 +68,22 @@ export const login = async (req, res) => {
 
         const user = await UserModel.findOne({ where: { email } });
 
-        if (!user) {
+        if (!user || !(await argon2.verify(user.password, password))) {
             return res.status(401).json({ error: 'Credenciais inválidas' });
         }
 
-        // REFACTOR
-        const senhaValida = await argon2.verify(user.password, password);
+        const token = createAccessToken(user);
+        const refreshToken = createRefreshToken();
 
-        if (!senhaValida) {
-            return res.status(401).json({
-                error: 'Credenciais inválidas'
-            });
-        }
-        
-        const token = jwt.sign(
-            { 
-                id: user.id, 
-                email: user.email, 
-                role: user.role 
-            },
-            
-            JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+        await RefreshTokenModel.create({
+            token: refreshToken,
+            userId: user.id,
+            expiresAt: refreshTokenExpiration()
+        });
 
         return res.status(200).json({
             token,
+            refreshToken,
             user: {
                 id: user.id,
                 name: user.name,
@@ -85,39 +91,135 @@ export const login = async (req, res) => {
                 role: user.role
             }
         });
-
     } catch (error) {
-        console.error(error);
+        console.error('Erro no login:', error);
         return res.status(500).json({ error: 'Erro no servidor' });
     }
 };
 
-export const logout = async (req, res) => {
+export const refresh = async (req, res) => {
+    const { refreshToken } = req.body;
+
+    if (typeof refreshToken !== 'string' || refreshToken.length !== 80) {
+        return res.status(401).json({
+            error: 'Refresh token inválido ou expirado'
+        });
+    }
+
     try {
-        const token = req.headers.authorization?.split(' ')[1];
+        const result = await sequelize.transaction(async (transaction) => {
+            const storedToken = await RefreshTokenModel.findOne({
+                where: { token: refreshToken },
+                include: [{
+                    model: UserModel,
+                    as: 'user',
+                    attributes: ['id', 'name', 'email', 'role']
+                }],
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
 
-        if (!token) {
-            return res.status(401).json({ message: 'Token não informado' });
-        }
+            if (!storedToken || storedToken.expiresAt <= new Date() || !storedToken.user) {
+                return null;
+            }
 
-        const decoded = jwt.verify(token, JWT_SECRET);
+            const user = storedToken.user;
+            const nextAccessToken = createAccessToken(user);
+            const nextRefreshToken = createRefreshToken();
 
-        const alreadyRevoked = await RevokedToken.findOne({
-            where: { token }
+            await storedToken.destroy({ transaction });
+
+            await RefreshTokenModel.create({
+                token: nextRefreshToken,
+                userId: user.id,
+                expiresAt: refreshTokenExpiration()
+            }, { transaction });
+
+            return {
+                token: nextAccessToken,
+                refreshToken: nextRefreshToken,
+                user: {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role
+                }
+            };
         });
 
-        if (alreadyRevoked) {
-            return res.status(401).json({ message: 'Este token já foi revogado' });
+        if (!result) {
+            return res.status(401).json({
+                error: 'Refresh token inválido ou expirado'
+            });
         }
 
-        await RevokedToken.create({
-            token,
-            expiresAt: new Date(decoded.exp * 1000)
-        });
-
-        return res.status(200).json({ message: 'Logout realizado com sucesso' });
-
+        return res.status(200).json(result);
     } catch (error) {
-        return res.status(401).json({ message: 'Token inválido ou expirado' });
+        console.error('Erro ao renovar sessão:', error);
+        return res.status(500).json({ error: 'Erro ao renovar sessão' });
+    }
+};
+
+export const logout = async (req, res) => {
+    const { refreshToken } = req.body;
+
+    if (typeof refreshToken !== 'string' || refreshToken.length !== 80) {
+        return res.status(400).json({
+            error: 'Refresh token é obrigatório para encerrar a sessão'
+        });
+    }
+
+    const authorization = req.headers.authorization;
+    const accessToken = authorization?.startsWith('Bearer ')
+        ? authorization.slice(7)
+        : null;
+
+    try {
+        const revoked = await sequelize.transaction(async (transaction) => {
+            const storedRefreshToken = await RefreshTokenModel.findOne({
+                where: { token: refreshToken },
+                transaction,
+                lock: transaction.LOCK.UPDATE
+            });
+
+            if (!storedRefreshToken) {
+                return false;
+            }
+
+            await storedRefreshToken.destroy({ transaction });
+
+            if (accessToken) {
+                try {
+                    const decoded = jwt.verify(accessToken, process.env.JWT_SECRET);
+
+                    if (String(decoded.id) === String(storedRefreshToken.userId)) {
+                        await RevokedToken.findOrCreate({
+                            where: { token: accessToken },
+                            defaults: {
+                                token: accessToken,
+                                expiresAt: new Date(decoded.exp * 1000)
+                            },
+                            transaction
+                        });
+                    }
+                } catch {
+                    // Access Token ausente, expirado ou inválido:
+                    // a revogação do Refresh Token ainda encerra a sessão.
+                }
+            }
+
+            return true;
+        });
+
+        if (!revoked) {
+            return res.status(401).json({
+                error: 'Refresh token inválido ou já revogado'
+            });
+        }
+
+        return res.status(204).send();
+    } catch (error) {
+        console.error('Erro no logout:', error);
+        return res.status(500).json({ error: 'Erro ao encerrar sessão' });
     }
 };

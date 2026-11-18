@@ -12,6 +12,7 @@ import { connectDB } from './configs/database.js';
 import { seedDatabase } from './configs/seed.js';
 
 import './models/userModel.js';
+import './models/refreshTokenModel.js';
 import './models/bookModel.js';
 import './models/authorModel.js';
 import './models/categoryModel.js';
