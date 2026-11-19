@@ -110,16 +110,19 @@ export const refresh = async (req, res) => {
         const result = await sequelize.transaction(async (transaction) => {
             const storedToken = await RefreshTokenModel.findOne({
                 where: { token: refreshToken },
-                include: [{
-                    model: UserModel,
-                    as: 'user',
-                    attributes: ['id', 'name', 'email', 'role']
-                }],
                 transaction,
                 lock: transaction.LOCK.UPDATE
             });
 
-            if (!storedToken || storedToken.expiresAt <= new Date() || !storedToken.user) {
+            if (!storedToken || storedToken.expiresAt <= new Date()) {
+                return null;
+            }
+            
+            const user = await UserModel.findByPk(storedToken.userId, {
+                transaction
+            });
+            
+            if (!user) {
                 return null;
             }
 
