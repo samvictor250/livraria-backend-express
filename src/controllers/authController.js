@@ -125,8 +125,7 @@ export const refresh = async (req, res) => {
             if (!user) {
                 return null;
             }
-
-            const user = storedToken.user;
+            
             const nextAccessToken = createAccessToken(user);
             const nextRefreshToken = createRefreshToken();
 
