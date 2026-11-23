@@ -1,4 +1,5 @@
 import AuthorModel from '../models/authorModel.js';
+import BookModel from '../models/bookModel.js';
 
 export const createAuthor = async (req, res) => {
     try {
@@ -106,6 +107,16 @@ export const deleteAuthor = async (req, res) => {
             return res.status(404).json({ message: 'Autor não encontrado' });
         }
 
+        const books = await BookModel.count({
+            where: { authorId: id }
+        });
+
+        if (books > 0) {
+            return res.status(409).json({
+                message: 'Não é possível excluir um autor que possui livros associados'
+            });
+        }
+        
         await author.destroy();
 
         return res.status(200).json({
