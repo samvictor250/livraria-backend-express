@@ -1,4 +1,5 @@
 import CategoryModel from '../models/categoryModel.js';
+import BookModel from '../models/bookModel.js';
 
 export const createCategory = async (req, res) => {
     try {
@@ -105,7 +106,15 @@ export const deleteCategory = async (req, res) => {
         if (!category) {
             return res.status(404).json({ message: 'Categoria não encontrada' });
         }
+        const books = await BookModel.count({
+            where: { categoryId: id }
+        });
 
+        if (books > 0) {
+            return res.status(409).json({
+                message: 'Não é possível excluir uma categoria que possui livros associados'
+            });
+        }
         await category.destroy();
 
         return res.status(200).json({
